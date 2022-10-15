@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="hu">
+
+<head>
+    <meta charset=utf-8>
+    <title>Beadando</title>
+    <style>
+        body { margin: 0; overflow: hidden }
+        canvas { width: 100%; height: 100% }
+
+        #caption {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 50%;
+            text-align: left;
+            z-index: 100;
+            display:block;
+            color: gold;
+        }
+
+        #parancs {
+            position: absolute;
+            top: 10px;
+            right: -500px;
+            width: 50%;
+            text-align: left;
+            z-index: 100;
+            display:block;
+            color: beige;
+            opacity: 1.0;
+        }
+
+    </style>
+</head>
+
+<body>
+
+<div id="caption">
+    Potyesz Máté <br>
+    NNVIMA <br>
+    Gazdaságinformatikus nappali <br>
+    2020/2021 ősz<br>
+</div>
+
+<div id="parancs">
+    Híd mozgatása: fel és le nyilakkal <br>
+    <br><button id="nappal">nappal</button> <br>
+    <br><button id="ejszaka">ejszaka</button>
+
+</div>
+
+
+
+<script type="module">
+    import { TrackballControls } from './js-r119/examples/jsm/controls/TrackballControls.js';
+    import * as THREE from './js-r119/build/three.module.js';
+    import Stats from './js-r119/examples/jsm/libs/stats.module.js';
+    import { OBJLoader } from './js-r119/examples/jsm/loaders/OBJLoader.js';
+    import { MTLLoader } from './js-r119/examples/jsm/loaders/MTLLoader.js';
+    import { TWEEN } from './js-r119/examples/jsm/libs/tween.module.min.js';
+
+
+    // Globális változók
+    var WIDTH, HEIGHT, aspectRatio;
+    var scene, camera;
+    var meshLoaded;
+    var renderer;
+    var light1;
+    var controls;
+    var alapgeometry, alapmaterial, alapmesh;
+    var faGeometry, faMaterial, faMesh;
+    var faGeometry2, faMaterial2, faMesh2;
+    var faGeometry3, faMaterial3, faMesh3;
+    var faGeometry4, faMaterial4, faMesh4;
+    var tuzgeometry,tuzmaterial,tuzsphere;
+    var hidGeometry,hidMaterial,hidMesh;
+    var stats;
+
+
+
+    loader_obj_mtl();
+    // loader_obj();
+
+    function loader_obj_mtl() {
+        var OBJFile = 'blender/Egybe.obj';
+        var MTLFile = 'blender/Egybe.mtl';
+        //var OBJFile = 'assets/models/sphere_uv_smooth.obj';
+        //var MTLFile = 'assets/models/sphere_uv_smooth.mtl';
+        //var OBJFile = 'assets/models/csonak.obj';
+        //var MTLFile = 'assets/models/csonak.mtl';
+
+        new MTLLoader()
+            .load(MTLFile, function (materials) {
+                materials.preload();
+                new OBJLoader()
+                    .setMaterials(materials)
+                    .load(OBJFile, function (object) {
+                        meshLoaded = object;
+                        console.log(object);
+
+                        object.traverse(function (child) {
+                            if (child instanceof THREE.Mesh) {
+                                child.scale.set(4, 4, 4);
+                                //child.material.side = THREE.DoubleSide;
+
+                                console.log(child.material);
+                            }
+                        });
+
+                        init();
+                    });
+            });
+    }
+
+    // Az OBJLoader-nek elvileg be kellene töltenie a material adatokat is,
+    // de azok nem érvényesülnek (r119 verzióig legalábbis).
+    // Használjuk a loader_obj_mtl() függvényt egyelőre.
+    function loader_obj() {
+        var OBJFile = 'blender/Egybe.obj';
+        //var OBJFile = 'assets/models/sphere_uv_smooth.obj';
+        //var OBJFile = 'assets/models/csonak.obj';
+
+        var loader = new OBJLoader();
+        loader.load(
+            // Forrás URL
+            OBJFile,
+            // Modell betöltése utáni függvény
+            function ( object ) {
+                // A loaded egy THREE.Group objektum lesz, amelynek a gyermeke(i) a mesh(-ek)!
+                meshLoaded = object;
+                console.log(object);
+
+                object.traverse(function (child) {
+                    if (child instanceof THREE.Mesh) {
+                        child.scale.set(4, 4, 4);
+                        //child.material.side = THREE.DoubleSide;
+                    }
+                });
+
+                init();
+            },
+            // Betöltés előrehaladása közben hívódik
+            function ( xhr ) {
+                console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
+            },
+            // Hibás betöltés esetén
+            function ( error ) {
+                console.log( 'An error happened!', error.currentTarget.statusText, error.currentTarget.responseURL );
+            });
+    }
+
+    function addStatsObject() {
+        stats = new Stats();
+        stats.setMode(0);
+
+        stats.domElement.style.position = 'absolute';
+        stats.domElement.style.left = '0px';
+        stats.domElement.style.top = '90px';
+        document.body.appendChild( stats.domElement );
+    }
+
+
+    function init() {
+        // Böngésző ablakméret lekérése és méretarány számítása
+        HEIGHT = window.innerHeight;
+        WIDTH = window.innerWidth;
+        aspectRatio = WIDTH / HEIGHT;
+
+        // Színtér létrehozása
+        scene = new THREE.Scene();
+
+        // Renderer létrehozása és DOM-hoz adása
+        renderer = new THREE.WebGLRenderer( { antialias: true } );
+        renderer.setSize( WIDTH, HEIGHT );
+        renderer.setClearColor( 0x202020 );
+        document.body.appendChild( renderer.domElement );
+
+        // Kamera létrehozása és vetítési paramétereinek beállítása
+        camera = new THREE.PerspectiveCamera( 89, aspectRatio,1, 800 );
+        camera.position.set( 4, 38, 65 );
+
+        controls = new TrackballControls( camera, renderer.domElement );
+        controls.rotateSpeed = 4.0;
+        controls.panSpeed = 2.0;
+
+        // Betöltött objektum színtérhez adása
+        scene.add( meshLoaded );
+
+        // Talaj
+        var textureLoader1 = new THREE.TextureLoader();
+        var texture1 = textureLoader1.load( 'koves.jpg' );
+
+        var groundGeometry = new THREE.PlaneGeometry( 80, 80 );
+        var groundMaterial = new THREE.MeshBasicMaterial( {
+            color: 0xD2B48C,
+            wireframe: false,
+            side: THREE.DoubleSide
+        } );
+
+        groundMaterial.map = texture1;
+
+        var groundMesh = new THREE.Mesh( groundGeometry, groundMaterial );
+        groundMesh.rotation.x = -1.0 * THREE.MathUtils.degToRad( 90 );
+        groundMesh.position.set( 7, -5.3, -20 );
+        scene.add( groundMesh );
+
+        //viz
+
+        var textureLoader11 = new THREE.TextureLoader();
+        var texture11 = textureLoader11.load( 'water.jpg' );
+
+        var waterGeometry = new THREE.PlaneGeometry( 10, 80 );
+        var waterMaterial = new THREE.MeshBasicMaterial( {
+            color: 0x00FFFF,
+            wireframe: false,
+            side: THREE.DoubleSide
+        } );
+
+        waterMaterial.map = texture11;
+
+        var waterMesh = new THREE.Mesh( waterGeometry, waterMaterial );
+        waterMesh.rotation.x = -1.0 * THREE.MathUtils.degToRad( 90 );
+        waterMesh.position.set( -38, -5.3, -20 );
+        scene.add( waterMesh );
+
+        var textureLoader22 = new THREE.TextureLoader();
+        var texture22 = textureLoader22.load( 'water.jpg' );
+
+        var waterGeometry2 = new THREE.PlaneGeometry( 10, 80 );
+        var waterMaterial2 = new THREE.MeshBasicMaterial( {
+            color: 0x00FFFF,
+            wireframe: false,
+            side: THREE.DoubleSide
+        } );
+
+        waterMaterial2.map = texture22;
+
+        var waterMesh2 = new THREE.Mesh( waterGeometry2, waterMaterial2 );
+        waterMesh2.rotation.x = -1.0 * THREE.MathUtils.degToRad( 90 );
+        waterMesh2.position.set( 52, -5.3, -20 );
+        scene.add( waterMesh2 );
+
+
+        var textureLoader33 = new THREE.TextureLoader();
+        var texture33 = textureLoader33.load( 'water.jpg' );
+
+        var waterGeometry3 = new THREE.PlaneGeometry( 100, 10 );
+        var waterMaterial3 = new THREE.MeshBasicMaterial( {
+            color: 0x00FFFF,
+            wireframe: false,
+            side: THREE.DoubleSide
+        } );
+
+        waterMaterial3.map = texture33;
+
+        var waterMesh3 = new THREE.Mesh( waterGeometry3, waterMaterial3 );
+        waterMesh3.rotation.x = -1.0 * THREE.MathUtils.degToRad( 90 );
+        waterMesh3.position.set(7, -5.3, 25 );
+        scene.add( waterMesh3 );
+
+
+        var textureLoader44 = new THREE.TextureLoader();
+        var texture44 = textureLoader33.load( 'water.jpg' );
+
+        var waterGeometry4 = new THREE.PlaneGeometry( 100, 10 );
+        var waterMaterial4 = new THREE.MeshBasicMaterial( {
+            color: 0x00FFFF,
+            wireframe: false,
+            side: THREE.DoubleSide
+        } );
+
+        waterMaterial4.map = texture44;
+
+        var waterMesh4 = new THREE.Mesh( waterGeometry4, waterMaterial4 );
+        waterMesh4.rotation.x = -1.0 * THREE.MathUtils.degToRad( 90 );
+        waterMesh4.position.set(7, -5.3, -65 );
+        scene.add( waterMesh4 );
+
+        //talajvizutan
+
+        var textureLoader55 = new THREE.TextureLoader();
+        var texture55 = textureLoader55.load( 'koves.jpg' );
+
+        var groundafterGeometry = new THREE.PlaneGeometry( 10, 125 );
+        var groundafterMaterial = new THREE.MeshBasicMaterial( {
+            color: 0xD2B48C,
+            wireframe: false,
+            side: THREE.DoubleSide
+        } );
+
+        groundafterMaterial.map = texture55;
+
+        var groundafterMesh = new THREE.Mesh( groundafterGeometry, groundafterMaterial );
+        groundafterMesh.rotation.x = -1.0 * THREE.MathUtils.degToRad( 90 );
+        groundafterMesh.position.set( -48, -5.3, -17.6 );
+        scene.add( groundafterMesh );
+
+
+        var textureLoader66 = new THREE.TextureLoader();
+        var texture66 = textureLoader66.load( 'koves.jpg' );
+
+        var groundafterGeometry2 = new THREE.PlaneGeometry( 10, 125 );
+        var groundafterMaterial2 = new THREE.MeshBasicMaterial( {
+            color: 0xD2B48C,
+            wireframe: false,
+            side: THREE.DoubleSide
+        } );
+
+        groundafterMaterial2.map = texture66;
+
+        var groundafterMesh2 = new THREE.Mesh( groundafterGeometry2, groundafterMaterial2 );
+        groundafterMesh2.rotation.x = -1.0 * THREE.MathUtils.degToRad( 90 );
+        groundafterMesh2.position.set( 62, -5.3, -17.6 );
+        scene.add( groundafterMesh2 );
+
+
+        var textureLoader77 = new THREE.TextureLoader();
+        var texture77 = textureLoader77.load( 'koves.jpg' );
+
+        var groundafterGeometry3 = new THREE.PlaneGeometry( 100, 15 );
+        var groundafterMaterial3 = new THREE.MeshBasicMaterial( {
+            color: 0xD2B48C,
+            wireframe: false,
+            side: THREE.DoubleSide
+        } );
+
+        groundafterMaterial3.map = texture77;
+
+        var groundafterMesh3 = new THREE.Mesh( groundafterGeometry3, groundafterMaterial3 );
+        groundafterMesh3.rotation.x = -1.0 * THREE.MathUtils.degToRad( 90 );
+        groundafterMesh3.position.set(7, -5.3, 37.4 );
+        scene.add( groundafterMesh3 );
+
+
+        var textureLoader88 = new THREE.TextureLoader();
+        var texture88 = textureLoader88.load( 'koves.jpg' );
+
+        var groundafterGeometry4 = new THREE.PlaneGeometry( 100, 10 );
+        var groundafterMaterial4 = new THREE.MeshBasicMaterial( {
+            color: 0xD2B48C,
+            wireframe: false,
+            side: THREE.DoubleSide
+        } );
+
+        groundafterMaterial4.map = texture88;
+
+        var groundafterMesh4 = new THREE.Mesh( groundafterGeometry4, groundafterMaterial4 );
+        groundafterMesh4.rotation.x = -1.0 * THREE.MathUtils.degToRad( 90 );
+        groundafterMesh4.position.set(7, -5.3, -75 );
+        scene.add( groundafterMesh4 );
+
+
+        //tabortuz+pontfeny
+
+        var textureLoader2 = new THREE.TextureLoader();
+        var texture2 = textureLoader2.load( 'fa.jpg' );
+
+        faGeometry = new THREE.BoxGeometry( 4, 0.5, 0.5 );
+        faMaterial = new THREE.MeshLambertMaterial( { color: 0xD2B48C, wireframe: false } );
+        faMaterial.map = texture2;
+        faMesh = new THREE.Mesh( faGeometry, faMaterial );
+        faMesh.position.set( 7, -5,-10 );
+        scene.add( faMesh );
+
+
+        var textureLoader3 = new THREE.TextureLoader();
+        var texture3 = textureLoader3.load( 'fa.jpg' );
+        faGeometry2 = new THREE.BoxGeometry( 4, 0.5, 0.5 );
+        faMaterial2 = new THREE.MeshLambertMaterial( { color: 0xD2B48C, wireframe: false } );
+        faMaterial2.map = texture3;
+        faMesh2 = new THREE.Mesh( faGeometry2, faMaterial2 );
+        faMesh2.position.set( 7, -5,-11.5 );
+        scene.add( faMesh2 );
+
+        var textureLoader4 = new THREE.TextureLoader();
+        var texture4 = textureLoader4.load( 'fa.jpg' );
+        faGeometry3 = new THREE.BoxGeometry( 0.5, 0.5, 4 );
+        faMaterial3 = new THREE.MeshLambertMaterial( { color: 0xD2B48C, wireframe: false } );
+        faMaterial3.map = texture4;
+        faMesh3 = new THREE.Mesh( faGeometry3, faMaterial3 );
+        faMesh3.position.set( 6.5, -4.5,-10.5 );
+        scene.add( faMesh3 );
+
+
+        var textureLoader5 = new THREE.TextureLoader();
+        var texture5 = textureLoader5.load( 'fa.jpg' );
+        faGeometry4 = new THREE.BoxGeometry( 0.5, 0.5, 4 );
+        faMaterial4 = new THREE.MeshLambertMaterial( { color: 0xD2B48C, wireframe: false } );
+        faMaterial4.map = texture5;
+        faMesh4 = new THREE.Mesh( faGeometry4, faMaterial4 );
+        faMesh4.position.set( 7.5, -4.5,-10.5 );
+        scene.add( faMesh4 );
+
+
+        var textureLoader6 = new THREE.TextureLoader();
+        var texture6 = textureLoader6.load( 'tuz3.jpg' );
+        tuzgeometry = new THREE.SphereGeometry( 2, 5, 6 );
+        tuzmaterial = new THREE.MeshLambertMaterial( {color: 0xff9900} );
+        tuzmaterial.map = texture6;
+        tuzsphere = new THREE.Mesh( tuzgeometry, tuzmaterial );
+        tuzsphere.position.set( 7, -3,-10.5 );
+        scene.add( tuzsphere )
+
+        var pLight = new THREE.PointLight( 0xff9900, 0.8 );
+        pLight.position.set( 6, 0, -10 );
+        scene.add( pLight );
+
+        //híd
+
+        //animalhato: ki-be tolhato
+
+        var textureLoader111 = new THREE.TextureLoader();
+        var texture111 = textureLoader111.load( 'hid.jpg' );
+
+        hidGeometry = new THREE.BoxGeometry( 10, 0.5, 15 );
+        hidMaterial = new THREE.MeshLambertMaterial( { color: 0xD2B48C, wireframe: false } );
+        hidMaterial.map = texture111;
+        hidMesh = new THREE.Mesh( hidGeometry, hidMaterial );
+        hidMesh.position.set( 9, -5,26 );
+        scene.add( hidMesh );
+
+        // Fények
+
+        //ambiens feny
+        var lightA = new THREE.AmbientLight( 0x404040,1);
+        scene.add( lightA );
+
+         document.getElementById("nappal").onclick = nappal => {
+            lightA.intensity = 0.6;
+            lightA.color.setHSL(0.7,0.5,0.9);
+        };
+        document.getElementById("ejszaka").onclick = ejszaka => {
+            lightA.intensity = 0.1;
+            lightA.color.setHSL(0.4,1,0.5);
+        };
+
+        light1 = new THREE.SpotLight( 0xffffff, 0.8  );
+        light1.position.set( 100, 100, 100 );
+        light1.angle = Math.PI / 4;
+        scene.add( light1 );
+
+        //fps,ms,stb
+
+        addStatsObject();
+
+
+        // Az ablak átméretezése esetén visszahívható függvény megadása
+        window.addEventListener( 'resize', handleWindowResize, false );
+        window.addEventListener( 'keydown', handleKeyDown, false );
+
+        camera.lookAt( scene.position );
+
+        // Kamera vezérlés
+        controls = new TrackballControls( camera, renderer.domElement );
+        controls.rotateSpeed = 5.0;
+        controls.panSpeed = 1.0;
+
+        // Animáció indítása
+        animate();
+    }
+
+    function moveUp(object,move,time) {
+        var tween = new TWEEN.Tween(object.position);
+        tween.to({ z: hidMesh.position.z + move }, time);
+        tween.easing(TWEEN.Easing.Elastic.In);
+        tween.start();
+
+    }
+
+    function moveDown(object,move,time) {
+        new TWEEN.Tween(object.position)
+        .to({ z: hidMesh.position.z + move }, time)
+        .easing(TWEEN.Easing.Elastic.In)
+        .start();
+
+    }
+
+    function handleKeyDown( event ) {
+        console.log( 'keydown: ' + event.keyCode);
+        if(event.keyCode == 38) {
+            moveUp(hidMesh,-3,1000);
+        }
+        if(event.keyCode == 40) {
+            moveUp(hidMesh,3,1000);
+        }
+    }
+
+
+    function handleWindowResize() {
+        // Az ablak átméretezése esetén a kamera vetítési paraméterek újraszámolása
+        HEIGHT = window.innerHeight;
+        WIDTH = window.innerWidth;
+        renderer.setSize( WIDTH, HEIGHT );
+        camera.aspect = WIDTH / HEIGHT;
+        camera.updateProjectionMatrix();
+
+        render();
+    }
+
+    function animate() {
+        // Újabb képkocka rajzolásának kérése.
+        // Maximálisan 60 FPS-t biztosít a rendszer.
+        requestAnimationFrame( animate );
+        controls.update();
+        TWEEN.update();
+
+        render();
+        stats.update();
+    }
+
+    function render() {
+        // 3D -> 2D vetített kép kiszámítása.
+        // scene 3D színtér képe a camera kamera szemszögéből.
+        renderer.render(scene, camera);
+    }
+
+</script>
+</body>
+</html>
